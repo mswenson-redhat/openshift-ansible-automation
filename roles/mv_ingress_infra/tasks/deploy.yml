@@ -1,0 +1,75 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+# Additional template brackets needed to escape go template syntax - e.g. {{ '{{' }}
+- name: Get current ingress configuration
+  shell: >-
+    oc
+    get ingresscontroller/default
+    -n openshift-ingress-operator
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --template='{{ '{{' }} .spec.nodePlacement {{ '}}' }}'
+    -o go-template
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  changed_when: false
+  register: get_out
+
+- name: add ingress to infra nodes
+  vars:
+    patch_contents: "{{ lookup('template', 'ingresspatch.j2') }}"
+  shell: >-
+    oc
+    patch ingresscontroller/default
+    -n openshift-ingress-operator
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --patch "{{ patch_contents }}"
+    --type=merge
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  register: patch_out
+  changed_when: "'no change' not in patch_out.stdout"
+  when: get_out.stdout == '<no value>'
+  notify:
+    - wait for rollout to start
+
+- name: Get number of replicas
+  vars:
+    go_template: !unsafe '{{.spec.replicas}}'
+  command: "oc
+            get ingresscontroller/default
+            -n openshift-ingress-operator
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: get_replicas
+  changed_when: false
+
+- name: run notified handlers
+  meta: flush_handlers 
+
+- name: check number of pods
+  vars:
+    go_template: !unsafe '{{range .items}}{{.spec.nodeName}}{{" " }}{{.status.phase}}{{"\n"}}{{end}}'
+  command: "oc
+            get pods
+            -n openshift-ingress
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: get_pods
+  until: get_pods.stdout_lines | length == get_replicas.stdout | int
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+  changed_when: false
+
+- name: verify pods on infra nodes
+  assert:
+    that:
+      - item.find("infra") != -1
+    fail_msg: "the pods are not running on the infra nodes"
+    success_msg: "the pods are running on the infra nodes"
+  loop: "{{ get_pods.stdout_lines }}"

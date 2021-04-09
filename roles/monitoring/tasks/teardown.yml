@@ -1,0 +1,61 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown monitoring config map
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('template', 'configmap.yml.j2') }}"
+    validate_certs: no
+
+- name: Teardown user workload monitoring config map
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('template', 'userworkload-configmap.yml.j2') }}"
+    validate_certs: no
+  when: enable_user_namespace_monitoring
+
+#IBM Watson Health has chosen to not have the PV/PVCs removed.  The below tasks are kept as an example
+#for how it can be done.
+#- name: Get a list of pvcs using thin storage class in openshift-monitoring namespace
+#  vars:
+#    # !unsafe tag tells ansible not to interpret any special characters
+#    go_template: !unsafe '{{ range .items }}{{ if eq .spec.storageClassName "thin" }}{{ "- name: " }}{{ .metadata.name }} {{ "\n  namespace: " }}{{ .metadata.namespace }}{{ "\n" }}{{ end }}{{ end }}'
+#  shell: >-
+#    oc get pvc
+#    -n openshift-monitoring
+#    --token {{ k8s_auth_results.k8s_auth.api_key }}
+#    -o go-template='{{ go_template }}'
+#    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+#  register: get_pvcs
+#  changed_when: false
+#
+#- name: Delete all pvcs with monitoring_pvc_name
+#  k8s:
+#    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+#    validate_certs: no
+#    state: absent
+#    resource_definition:
+#      apiVersion: v1
+#      kind: PersistentVolumeClaim
+#      metadata:
+#        name: "{{ item.name }}"
+#        namespace: "{{ item.namespace }}"
+#  loop: "{{ get_pvcs.stdout | from_yaml | default([], true) }}"
+#  when: "monitoring_pvc_name in item.name"
+#
+#- name: Delete all pvcs with alerting_pvc_name
+#  k8s:
+#    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+#    validate_certs: no
+#    state: absent
+#    resource_definition:
+#      apiVersion: v1
+#      kind: PersistentVolumeClaim
+#      metadata:
+#        name: "{{ item.name }}"
+#        namespace: "{{ item.namespace }}"
+#  loop: "{{ get_pvcs.stdout | from_yaml | default([], true) }}"
+#  when: "alerting_pvc_name in item.name"

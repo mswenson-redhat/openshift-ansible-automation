@@ -1,0 +1,240 @@
+#General variables
+cluster_name: test-cluster
+openshift_base_domain: test.com
+ansible_python_interpreter: python
+# Cluster operations namespace - used for ldap and object pruning
+operation_namespace: cluster-ops
+# Cluster name used for infra nodes and machine healthchecks
+#openshift_unique_cluster_name: "{{ cluster_name }}-{{ unique_cluster_id }}"
+num_retries: 30
+num_delay: 30
+
+#vSphere variables
+#you can get these values from oc describe machinesets {{ openshift_unique_cluster_name }}-worker -n openshift-machine-api
+vsphere_creds_secret: vsphere-cloud-credentials 
+vsphere_network_name: test|Dev|Green
+vsphere_datacenter: datacenter
+vsphere_datastore: datastore
+vsphere_folder: /folder
+vsphere_resourcepool: /Resources
+vsphere_server: server.com
+
+#vSphere storage class NOTE: this role uses the vsphere_datastore variable as well
+vsphere_storageClass_name: vsphere-storage
+vsphere_storageClass_reclaimPolicy: Retain
+vsphere_storageClass_desc: "Storage class for vCenter"
+vsphere_storageClass_datastore: datastore
+
+#Infra Nodes
+#The infranodes_taints_key var is used by the mv_ingress_infra, logging, monitoring roles
+infranodes_name: infra
+infranodes_node_selector: "node-role.kubernetes.io/infra: ''"
+infranodes_node_label: "node-role.kubernetes.io/infra: ''"
+infranodes_replicas: 3
+#ensure this role matches the value in the machine_role variable for the machine healthchecks
+infranodes_role: infra
+infranodes_type: infra
+infranodes_taints_key: "node-role.kubernetes.io/infra"
+infranodes_disk_size: 200
+infranodes_memory: 49152
+infranodes_cpu: 8
+infranodes_cores_per_socket: 1
+infranodes_template: "{{ openshift_unique_cluster_name }}-rhcos"
+
+#NTP
+rhcos_ntp_servers:
+- test-ntp.com
+
+#LDAP
+#Note: The LDAP role does not create role bindings so in order to access the cluster the RBAC role will need to be run as well.
+ldap_url: "ldaps://ldapserver.com/cn=users,cn=accounts,dc=,dc=,dc=,dc=com?uid?sub?(uid=*)" 
+ldap_bind_dn: uid=ldap_bind,cn=users,cn=compat,dc=,dc=,dc=,dc=com
+ldap_base_dn: cn=users,cn=accounts,dc=,dc=,dc=,dc=com
+ldap_group_sync_whitelist: |
+ cn=groupname,cn=groups,cn=accounts,dc=,dc=,dc=,dc=com
+ cn=groupname,cn=groups,cn=accounts,dc=,dc=,dc=,dc=com
+ldap_certFilePath: "/some/file/path/ldap.crt"
+ldap_certFile: "{{ lookup('file', ldap_certFilePath ) + '\n'}}"
+ldap_cert: "{{ ldap_certFile }}"
+
+#Egress
+#If using SDN Only the first IP address will be used. 
+#If using SDN egress_CIDR should contain all egress IPs
+network_type: OVN
+egress_CIDR: "0.0.0.0/0"
+egress_ips:
+  - namespace: test-namespace
+    ips:
+      - 1.2.3.4
+egress_fws:
+  - namespace: test-namespace
+    template: exampleFWtemplate.yml.j2
+
+#RBAC
+rbac_roles:
+  - role_name: cluster-admin
+    group: groupname 
+  - role_name: cluster-reader
+    group: groupname
+  - role_name: deploy
+    create_role: true
+    group: groupname
+    namespaces:
+      - test-namespace
+  - role_name: admin
+    group: groupname
+    namespaces:
+      - test-namespace
+
+#Custom TLS Secrets
+tls_certs:
+  - name: tls-secret
+    namespaces: 
+      - <list of namespaces>
+    tls:
+      key: "{{ tls_secret_key | b64encode }}"
+      crt: "{{ tls_secret_crt | b64encode }}"
+
+#Replace Certs
+certs:
+- ca_chain_file_path: "/some/file/path/starappslabchain.pem"
+  crt_file_path: "/some/file/path/starappslab.pem"
+  key_file_path: "/some/file/path/starlab.key"
+  hostname: "*.apps.{{ cluster_name }}.{{ openshift_base_domain }}"
+- ca_chain_file_path: "/some/file/path/apilabcachain.pem"
+  crt_file_path: "/some/file/path/apilabocp.pem"
+  key_file_path: "/some/file/path/apilab.key"
+  hostname: "api.{{ cluster_name }}.{{ openshift_base_domain }}"
+- ca_chain_file_path: "/some/file/path/ca-root.pem"
+
+#Cert Replacement Helper Variables: These should not be changed.
+certFiles: #DO NOT ALTER
+- crtFile: "{{ lookup('file', certs[0].crt_file_path ) + '\n'}}"
+  keyFile: "{{ lookup('file', certs[0].key_file_path ) + '\n'}}"
+  caFile: "{{ lookup('file', certs[0].ca_chain_file_path ) + '\n'}}"
+- crtFile: "{{ lookup('file', certs[1].crt_file_path ) + '\n'}}"
+  keyFile: "{{ lookup('file', certs[1].key_file_path ) + '\n'}}"
+  caFile: "{{ lookup('file', certs[1].ca_chain_file_path ) + '\n'}}"
+- caFile: "{{ lookup('file', certs[2].ca_chain_file_path ) + '\n'}}"
+app_certs: #DO NOT ALTER
+- name: app-cert
+  namespace: openshift-ingress
+  ca_chain: "{{ certFiles[0].caFile | b64encode }}"
+  crt: "{{ certFiles[0].crtFile | b64encode }}"
+  key: "{{ certFiles[0].keyFile | b64encode }}"
+api_certs: #DO NOT ALTER
+- name: api-cert
+  namespace: openshift-config
+  ca_chain: "{{ certFiles[1].caFile | b64encode }}"
+  crt: "{{ certFiles[1].crtFile | b64encode }}"
+  key: "{{ certFiles[1].keyFile | b64encode }}"
+ca_bundle_certs: #DO NOT ALTER
+- name: ca-bundle
+  namespace: openshift-config
+  key: ca-bundle.crt
+  value: "{{ certFiles[2].caFile }}"
+
+
+#Logging
+logging_subscription_channel: 5.0
+logging_approval_strategy: manual
+elasticsearch_nodecount: 3
+elasticsearch_redundancy: SingleRedundancy
+elasticsearch_limits:
+  cpu:
+  memory: 8Gi
+elasticsearch_requests:
+  cpu: 100m
+  memory: 1Gi
+elasticsearch_storage_class: vsphere-storage
+elasticsearch_storage_size: 50Gi
+kibana_nodecount: 1
+kibana_limits:
+  cpu: 
+  memory: 2Gi
+kibana_requests:
+  cpu: 100m
+  memory: 1Gi
+fluentd_limits:
+  cpu: 
+  memory: 756Mi
+fluentd_requests:
+  cpu: 100m
+  memory: 512Mi
+
+#Machine health checks - NOTE: healthchecks are not supported on Master nodes as of OCP 4.7
+health_check_maxunhealthy: 100%
+health_check_timeout: 300s
+machine_role: 
+- worker
+- infra
+- master
+
+#etcd backups
+etcd_backup_namespace: "etcd-backups"
+etcd_backup_username: "etcd-backup-user"
+etcd_backup_user: "system:serviceaccount:{{ etcd_backup_namespace }}:{{ etcd_backup_username }}"
+etcd_backup_volume_name: "{{ cluster_name }}-etcd-backup"
+etcd_backup_volume_size: "10Gi"
+etcd_backup_configmap: "etcd-backup-scripts"
+etcd_backup_daysToKeepBackups: 1
+etcd_backup_storage_class: "vsphere-storage"
+## if using nfs for the pv set these variables
+#etcd_nfspath: "/ocp_sbx_etcd_backups"
+etcd_nfsserver: 10.9.54.189
+
+# Just documeting the variable. We set the variable using the set_fact module
+# etcd_image: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:3c5301e86aa93d36d936cd5bd6b3575c98c4d33205be38c6dcbe09774b95ca7a"
+
+#Image Registry
+image_registry_size: 100Gi
+image_regitry_emptydir: false
+
+#Image Policy
+allowed_registries: "[\"quay.io\", \"registry.redhat.io\", \"us.icr.io\"]"
+#insecure_registries: "[\"some.insecure.registry\"]"
+
+#Additional Nics
+additional_nic_ignition_version: 3.1.0
+additional_nic_machineconfig_name: 99-worker-additional-nic-config
+additional_nic_device: ens224
+additional_nic_mac_worker1: 00:50:56:bd:0f:e1
+additional_nic_mac_worker2: 00:50:56:bd:50:a1
+additional_nic_mac_worker3: 00:50:56:bd:68:17
+additional_nic_type: Ethernet
+additional_nic_bootprotocol: none
+additional_nic_ip_worker1: 10.0.99.183
+additional_nic_ip_worker2: 10.0.99.184
+additional_nic_ip_worker3: 10.0.99.185
+additional_nic_subnetmask: 24
+additional_nic_dns: 10.0.99.20
+additional_nic_onboot: "yes"
+additional_nic_gw: 10.0.99.2
+
+#Monitoring
+enable_user_namespace_monitoring: true
+monitoring_retention_period: 1d
+monitoring_pvc_name: prometheusdb
+monitoring_storage_class: vsphere-storage
+monitoring_storage_size: 10Gi
+alerting_pvc_name: alertmanager
+alerting_storage_size: 5Gi
+#User Workload Monitoring
+userworkload_retention: 24h
+userworkload_storage_size: 5Gi
+
+#Compliance Operator
+compliance_name: compliance-operator
+compliance_namespace: openshift-compliance
+compliance_subscription_channel: 4.7
+compliance_install_approval: Manual
+compliance_suitename: example-compliancesuite
+
+#File Integrity Operator
+fileintegrity_operatorgroup_name: global-operators
+fileintegrity_name: file-integrity-operator
+fileintegrity_namespace: openshift-file-integrity
+fileintegrity_subscription_channel: 4.7
+fileintegrity_install_approval: Manual
+fileintegrity_instance_name: example-fileintegrity
+fileintegrity_targetnamespace: openshift-file-integrity

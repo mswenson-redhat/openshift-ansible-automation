@@ -1,0 +1,11 @@
+- name: Install role dependencies
+  import_tasks: prerequisites.yml
+  when: prerequisites | default(false)
+
+- name: Deploy openshift object pruning configuration
+  import_tasks: deploy.yml
+  when: not teardown | default(false)
+
+- name: Teardown openshift object pruning configuration
+  import_tasks: teardown.yml
+  when: teardown | default(false)

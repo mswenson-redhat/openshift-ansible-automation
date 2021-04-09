@@ -1,0 +1,10 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create vSphere storage class
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'vsphere-storage.yaml.j2') }}"
+    validate_certs: no

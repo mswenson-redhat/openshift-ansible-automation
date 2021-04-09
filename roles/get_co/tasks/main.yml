@@ -1,0 +1,7 @@
+- name: Deploy get pods
+  import_tasks: deploy.yml
+  when: not teardown | default(false)
+
+- name: Teardown get pods
+  import_tasks: teardown.yml
+  when: teardown | default(false)

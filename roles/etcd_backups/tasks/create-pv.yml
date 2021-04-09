@@ -1,0 +1,17 @@
+- name: get PV object
+  k8s_info:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    api_version: v1
+    kind: PersistentVolume
+    name: "{{ etcd_backup_volume_name }}"
+    validate_certs: no
+  register: reg_etcd_backup_pv
+
+- name: Create PV for use with the cron job
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'etcd-backup-pv.yaml.j2') }}"
+  when:
+    - not reg_etcd_backup_pv.resources

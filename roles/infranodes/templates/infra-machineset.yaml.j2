@@ -1,0 +1,55 @@
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  labels:
+    machine.openshift.io/cluster-api-cluster: {{ openshift_unique_cluster_name }}
+  name: {{ openshift_unique_cluster_name }}-{{ infranodes_name }}
+  namespace: openshift-machine-api
+spec:
+  replicas: {{ infranodes_replicas }}
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: {{ openshift_unique_cluster_name }}
+      machine.openshift.io/cluster-api-machineset: {{ openshift_unique_cluster_name }}-{{ infranodes_name }}
+  template:
+    metadata:
+      labels:
+        machine.openshift.io/cluster-api-cluster: {{ openshift_unique_cluster_name }}
+        machine.openshift.io/cluster-api-machine-role: {{ infranodes_role }}
+        machine.openshift.io/cluster-api-machine-type: {{ infranodes_type }}
+        machine.openshift.io/cluster-api-machineset: {{ openshift_unique_cluster_name }}-{{ infranodes_name }}
+    spec:
+      metadata:
+        creationTimestamp: null
+        labels:
+          {{ infranodes_node_label }}
+      providerSpec:
+        value:
+          apiVersion: vsphereprovider.openshift.io/v1beta1
+          credentialsSecret:
+            name: {{ vsphere_creds_secret }}
+          diskGiB: {{ infranodes_disk_size }}
+          kind: VSphereMachineProviderSpec
+          memoryMiB: {{ infranodes_memory }}
+          metadata:
+            creationTimestamp: null
+          network:
+            devices:
+            - networkName: {{ vsphere_network_name }}
+          numCPUs: {{ infranodes_cpu }}
+          numCoresPerSocket: {{ infranodes_cores_per_socket }}
+          snapshot: ""
+          template: {{ infranodes_template }}
+          userDataSecret:
+            name: worker-user-data
+          workspace:
+            datacenter: {{ vsphere_datacenter }}
+            datastore: {{ vsphere_datastore }}
+            folder: {{ vsphere_folder }}
+            resourcePool: {{ vsphere_resourcepool }}
+            server: {{ vsphere_server }}
+      taints:
+        - key: {{ infranodes_taints_key }}
+          effect: NoSchedule
+        - key: {{ infranodes_taints_key }}
+          effect: NoExecute

@@ -1,0 +1,85 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Verify Certificates
+  include_tasks: keyverify.yml
+  with_items: "{{ certs }}"
+
+- name: Deploy api secret
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    apply: yes
+    resource_definition: "{{ lookup('template', 'secret.yaml.j2') }}"
+    validate_certs: no
+  with_items: "{{ api_certs }}"
+
+- name: Patch apiserver
+  command: "oc
+            patch
+            apiserver cluster
+            --type=merge
+            -p 
+            '{\"spec\":{\"servingCerts\": {\"namedCertificates\":[{\"names\": [\"api.{{ cluster_name }}.{{ openshift_base_domain }}\"],\"servingCertificate\": {\"name\": \"{{ cluster_name }}-{{ item.name }}-secret\"}}]}}}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  with_items: "{{ api_certs }}"
+
+- name: Deploy CA Bundle configmap
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    apply: yes
+    resource_definition: "{{ lookup('template', 'configmap.yaml.j2') }}"
+    validate_certs: no
+  with_items: "{{ ca_bundle_certs }}"
+
+- name: Patch Proxy
+  command: "oc
+            patch
+            proxy/cluster
+            --type=merge
+            -p 
+            '{\"spec\":{\"trustedCA\": {\"name\": \"{{ cluster_name }}-{{ item.name }}-cm\"}}}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  with_items: "{{ ca_bundle_certs }}"
+
+- name: Deploy app secret
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    apply: yes
+    resource_definition: "{{ lookup('template', 'secret.yaml.j2') }}"
+    validate_certs: no
+  with_items: "{{ app_certs }}"
+
+- name: Patch Ingress Controller
+  command: "oc
+            patch
+            ingresscontroller.operator default
+            -n openshift-ingress-operator
+            --type=merge
+            -p 
+            '{\"spec\":{\"defaultCertificate\": {\"name\": \"{{ cluster_name }}-{{ item.name }}-secret\"}}}'
+            -n openshift-ingress-operator
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  with_items: "{{ app_certs }}"
+
+- name: wait for ingress roll out to complete
+  vars:
+    go_template: !unsafe '{{range .items}}{{.status.phase}}{{"\n"}}{{end}}'
+  command: "oc
+            get pods 
+            -o go-template='{{ go_template }}'
+            -n openshift-ingress
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: get_pods
+  until: get_pods.stdout_lines |unique == ["Running"]
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+  changed_when: false

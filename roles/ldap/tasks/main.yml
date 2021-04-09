@@ -1,0 +1,12 @@
+- name: Install role dependencies
+  import_tasks: prerequisites.yml
+  when: prerequisites | default(false)
+
+- name: Deploy openshift ldap configuration
+  import_tasks: deploy.yml
+  when: apply | default(false)
+
+- name: Teardown openshift ldap configuration
+  import_tasks: teardown.yml
+  when: teardown | default(false)
+  

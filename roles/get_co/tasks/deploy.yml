@@ -1,0 +1,19 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Get cluster operators
+  shell: >-
+    oc get co
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  register: co_list
+
+- name: print cluster operators
+  debug:
+    var: co_list
+
+- name: print unique cluster ID
+  debug:
+    var: openshift_unique_cluster_name

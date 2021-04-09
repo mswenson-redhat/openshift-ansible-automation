@@ -1,0 +1,72 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create compliance operator namespace
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    name: "{{ compliance_namespace }}"
+    api_version: v1
+    kind: Namespace
+    validate_certs: no
+
+- name: Create operatorgroup and subscription
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'compliance_operatorgroup.yaml.j2') }}"
+    validate_certs: no
+
+- name: verify operator pod is running
+  command: "oc
+            get pods
+            -n {{ compliance_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: get_pods
+  until:
+    - get_pods.stdout.find("{{compliance_name}}") !=-1
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+
+- name: get compliance subscription status
+  vars:
+    go_template: !unsafe '{{range .items}}{{.metadata.name}}{{" "}}{{(index .status.conditions 0).message}}{{"\n"}}{{end}}'
+  command: "oc
+            get subs
+            -n '{{ compliance_namespace }}'
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: subs_out
+
+- name: verify compliance operator installation
+  assert:
+    that:
+      - subs_out.stdout.find("{{ compliance_name }}") !=-1
+      - subs_out.stdout.find("all available catalogsources are healthy") !=-1
+    fail_msg: "Compliance operator not installed or not healthy please check"
+    success_msg: "Compliance operator installed and healthy"
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+
+- name: Create compliance suite
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'compliancesuite.yaml.j2') }}"
+    validate_certs: no
+
+- name: Change compliance operator installplanapproval
+  command: "oc
+            patch 
+            subscription/compliance-operator
+            --type=json 
+            -p='[{\"op\": replace,\"path\":\"/spec/installPlanApproval\",\"value\":\"{{ compliance_install_approval }}\"}]'
+            -n openshift-compliance
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"

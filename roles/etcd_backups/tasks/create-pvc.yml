@@ -1,0 +1,18 @@
+- name: get PVC object
+  k8s_info:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: "{{ etcd_backup_volume_name }}"
+    namespace: "{{ etcd_backup_namespace }}"
+    validate_certs: no
+  register: reg_etcd_backup_pvc
+
+- name: Create PVC for use with the cron job
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'etcd-backup-pvc.yaml.j2') }}"
+  when:
+    - not reg_etcd_backup_pvc.resources

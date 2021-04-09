@@ -1,0 +1,17 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown infra machine config pool
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('template', 'mcp.yaml.j2') }}"
+    validate_certs: no
+
+- name: Teardown infra machine set
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('template', 'infra-machineset.yaml.j2') }}"
+    validate_certs: no

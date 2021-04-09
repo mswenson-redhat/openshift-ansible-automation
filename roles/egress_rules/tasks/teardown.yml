@@ -1,0 +1,20 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+
+- name: Teardown Egress IPs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    validate_certs: no
+    definition: "{{ lookup('template', 'EgressIP.yml.j2') }}"
+  loop: "{{ egress_ips }}"
+
+- name: Teardown Egress FWs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    validate_certs: no
+    definition: "{{ lookup('template', '{{ item.template }}') }}"
+  loop: "{{ egress_fws }}"

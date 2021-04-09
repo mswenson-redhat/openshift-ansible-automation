@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: List
+items:
+
+- kind: CronJob
+  apiVersion: batch/v1beta1
+  metadata:
+    name: cronjob-prune-resources-deployments
+    namespace: "{{ operation_namespace }}"
+  spec:
+    schedule: "*/10 * * * *"
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 5
+    failedJobsHistoryLimit: 5
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: cronjob-prune-resources-deployments
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              command:
+              - "/bin/bash"
+              - "-c"
+              - "oc adm prune deployments
+                 --keep-complete=5
+                 --keep-failed=2
+                 --keep-younger-than=240h
+                 --orphans=true
+                 --confirm"
+            restartPolicy: OnFailure
+            terminationGracePeriodSeconds: 30
+            activeDeadlineSeconds: 500
+            dnsPolicy: ClusterFirst
+            serviceAccountName: deployment-pruner
+
+- kind: ClusterRole
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: deployment-pruner
+  rules:
+  - apiGroups:
+    - ""
+    - apps.openshift.io
+    resources:
+    - deploymentconfigs
+    verbs:
+    - get
+    - list
+    - delete
+  - apiGroups:
+    - ""
+    - extensions/v1beta1
+    resources:
+    - deployments
+    verbs:
+    - get
+    - list
+    - delete
+  - apiGroups:
+    - ""
+    resources:
+    - replicationcontrollers
+    verbs:
+    - get
+    - list
+
+- kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: deployment-pruners
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: deployment-pruner
+  subjects:
+  - kind: ServiceAccount
+    name: deployment-pruner
+    namespace: "{{ operation_namespace }}"
+
+- kind: ServiceAccount
+  apiVersion: v1
+  metadata:
+    name: deployment-pruner
+    namespace: "{{ operation_namespace }}"

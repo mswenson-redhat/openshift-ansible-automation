@@ -1,0 +1,12 @@
+spec: 
+  nodePlacement:
+    nodeSelector:
+      matchLabels:
+        {{ infranodes_node_selector }}
+    tolerations:
+    - effect: NoSchedule
+      key: {{ infranodes_taints_key }}
+      operator: Exists
+    - effect: NoExecute
+      key: {{ infranodes_taints_key }}
+      operator: Exists

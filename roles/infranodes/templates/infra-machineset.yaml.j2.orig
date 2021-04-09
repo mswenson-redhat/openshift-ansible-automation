@@ -1,0 +1,53 @@
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  labels:
+    machine.openshift.io/cluster-api-cluster: it-lab-ppblr
+  name: it-lab-ppblr-infra
+  namespace: openshift-machine-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: it-lab-ppblr
+      machine.openshift.io/cluster-api-machineset: it-lab-ppblr-infra
+  template:
+    metadata:
+      labels:
+        machine.openshift.io/cluster-api-cluster: it-lab-ppblr
+        machine.openshift.io/cluster-api-machine-role: infra
+        machine.openshift.io/cluster-api-machine-type: infra
+        machine.openshift.io/cluster-api-machineset: it-lab-ppblr-infra
+    spec:
+      metadata: 
+        creationTimestamp: null
+        labels:
+          node-role.kubernetes.io/infra: ""
+      taints:
+      - key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+      providerSpec:
+        value:
+          apiVersion: vsphereprovider.openshift.io/v1beta1
+          credentialsSecret:
+            name: vsphere-cloud-credentials
+          diskGiB: 300
+          kind: VSphereMachineProviderSpec
+          memoryMiB: 49152
+          metadata:
+            creationTimestamp: null
+          network:
+            devices:
+            - networkName: ICD-Green-DEV
+          numCPUs: 8
+          numCoresPerSocket: 1
+          snapshot: ""
+          template: it-lab-ppblr-rhcos
+          userDataSecret:
+            name: worker-user-data
+          workspace:
+            datacenter: IBMCD-RTP
+            datastore: xv-dev-app-ds
+            folder: /IBMCD-RTP/vm/OpenShift-Lab
+            resourcePool: /IBMCD-RTP/host/VMware-DevTest-C01/Resources
+            server: ibmcd-infra-vmware-vc-001.int.eclinical.cloud

@@ -1,0 +1,63 @@
+apiVersion: "logging.openshift.io/v1"
+kind: "ClusterLogging"
+metadata:
+  name: "instance"
+  namespace: openshift-logging
+spec:
+  managementState: "Managed"
+  logStore:
+    type: "elasticsearch"
+    elasticsearch:
+      nodeCount: {{ elasticsearch_nodecount }}
+      tolerations: 
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+      resources:
+        limits:
+          memory: {{ elasticsearch_limits['memory'] }}
+        requests:
+          cpu: {{ elasticsearch_requests['cpu'] }}
+          memory: {{ elasticsearch_requests['memory'] }}
+      storage:
+        storageClassName: {{ elasticsearch_storage_class }}
+        size: {{ elasticsearch_storage_size }}
+      redundancyPolicy: {{ elasticsearch_redundancy }}
+  visualization:
+    type: "kibana"
+    kibana:
+      tolerations: 
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+      resources:
+        limits:
+          memory: {{ kibana_limits['memory'] }}
+        requests:
+          cpu: {{ kibana_requests['cpu'] }}
+          memory: {{ kibana_requests['memory'] }}
+      replicas: {{ kibana_nodecount }}
+  collection:
+    logs:
+      type: "fluentd"
+      fluentd:
+        tolerations: 
+        - key: "{{ infranodes_taints_key }}"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "{{ infranodes_taints_key }}"
+          operator: "Exists"
+          effect: "NoExecute"
+        resources:
+          limits:
+            memory: {{ fluentd_limits['memory'] }}
+          requests:
+            cpu: {{ fluentd_requests['cpu'] }}
+            memory: {{ fluentd_requests['memory'] }}
+

@@ -1,0 +1,72 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown Cluster Logging
+  block:
+  - name: Remove clusterlogging custom resource definition
+    k8s:
+      api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+      state: absent
+      resource_definition: "{{ lookup('template', 'clusterlogging-instance.yaml.j2') }}"
+      validate_certs: no
+
+  - name: Remove operator group and subscription
+    k8s:
+      api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+      state: absent
+      resource_definition: "{{ lookup('template', 'operatorgroup.yaml.j2') }}"
+      validate_certs: no
+
+  - name: Remove elastic search operator namespace
+    k8s:
+      api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+      name: openshift-operators-redhat
+      api_version: v1
+      kind: Namespace
+      state: absent
+      validate_certs: no
+
+  - name: Remove elastic search namespace
+    k8s:
+      api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+      name: openshift-logging
+      api_version: v1
+      kind: Namespace
+      state: absent
+      validate_certs: no
+
+  - name: Pause while logging objects are deleted
+    pause:
+      minutes: 1
+
+  - name: Get list of elasticsearch clusterserviceversion objects
+    vars:
+      # !unsafe tag tells ansible not to interpret any special characters
+      go_template: !unsafe '{{ range .items }}{{ if eq (printf "%.13s" .metadata.name) "elasticsearch" }}{{ "- name: " }}{{ .metadata.name }} {{ "\n  namespace: " }}{{ .metadata.namespace }}{{ "\n" }}{{ end }}{{ end }}'
+    shell: >-
+      oc
+      get clusterserviceversion
+      --all-namespaces
+      --token {{ k8s_auth_results.k8s_auth.api_key }}
+      -o go-template='{{ go_template }}'
+      --insecure-skip-tls-verify=true
+      --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+    register: csvs
+    changed_when: false
+
+  - name: Delete all elasticsearch clusterserviceversion objects.
+    k8s:
+      api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+      state: absent
+      validate_certs: no
+      resource_definition:
+        apiVersion: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion
+        metadata:
+          name: "{{ item.name }}"
+          namespace: "{{ item.namespace }}"
+    loop: "{{ (csvs.stdout | from_yaml)['items']
+             | map(attribute='name')
+             | list }}"
+    when: csvs.stdout != ""

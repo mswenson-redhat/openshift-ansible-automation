@@ -1,0 +1,7 @@
+- name: Install role dependencies
+  pip:
+    name:
+    - openshift
+    - PyYAML
+    - kubernetes-validate
+    extra_args: --user

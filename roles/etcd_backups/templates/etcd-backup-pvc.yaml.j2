@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ etcd_backup_volume_name }}
+  namespace: {{ etcd_backup_namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ etcd_backup_volume_size }}
+  storageClassName: {{ etcd_backup_storage_class }}
+  volumeName: {{ etcd_backup_volume_name }}

@@ -1,0 +1,4 @@
+- name: Deploy Image Policy
+  import_tasks: deploy.yml
+  when: apply | default(false)
+  

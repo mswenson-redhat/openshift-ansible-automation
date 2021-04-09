@@ -1,0 +1,32 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown machine health checks
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    validate_certs: no
+    state: absent
+    resource_definition:
+      apiVersion: machine.openshift.io/v1beta1
+      kind: MachineHealthCheck
+      metadata:
+        name: "{{ item }}-healthcheck"
+        namespace: openshift-machine-api
+      spec:
+        selector:
+          matchLabels:
+            machine.openshift.io/cluster-api-cluster: "{{ openshift_unique_cluster_name }}"
+            machine.openshift.io/cluster-api-machine-role: "{{ item }}"
+            machine.openshift.io/cluster-api-machine-type: "{{ item }}"
+            machine.openshift.io/cluster-api-machineset: "{{ openshift_unique_cluster_name }}-{{ item }}"
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: "{{ health_check_timeout }}"
+          - type: Ready
+            status: 'False'
+            timeout: "{{ health_check_timeout }}"
+        maxUnhealthy: "{{ health_check_maxunhealthy }}"
+  when: item != "master"
+  loop: "{{ machine_role }}"

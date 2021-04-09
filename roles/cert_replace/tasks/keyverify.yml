@@ -1,0 +1,74 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Get Hostname from crt
+  command: "openssl 
+            x509 
+            -in {{ item.crt_file_path }} 
+            -noout 
+            -text"
+  register: hostname
+  when: item.crt_file_path is defined
+
+- name: Compare Hostname
+  assert:
+    that:
+      - "'{{ item.hostname }}' in hostname.stdout"
+  when: item.crt_file_path is defined
+
+- name: Openssl verify for crt
+  command: "openssl 
+            verify 
+            -CAfile 
+            {{ item.ca_chain_file_path }} 
+            {{ item.crt_file_path }}"
+  register: verify
+  when:
+    - item.ca_chain_file_path is defined
+    - item.crt_file_path is defined
+
+- name: Compare Openssl Verify
+  assert:
+    that:
+      - "'OK' in verify.stdout"
+  when:
+    - item.ca_chain_file_path is defined
+    - item.crt_file_path is defined
+
+- name: Get public pem from key pem 
+  command: "openssl
+            pkey
+            -in 
+            {{ item.key_file_path }}
+            -pubout
+            -outform
+            pem"
+  register: key_pem
+  when:
+    - item.ca_chain_file_path is defined
+    - item.crt_file_path is defined
+
+- name: Get crt pem
+  command: "openssl 
+            x509
+            -in  
+            {{ item.crt_file_path }}
+            -pubkey
+            -noout
+            -outform
+            pem"
+  register: crt_pem
+  when:
+    - item.ca_chain_file_path is defined
+    - item.crt_file_path is defined
+
+- name: Compare key and crt pems 
+  assert:
+    that:
+      - "key_pem.stdout == crt_pem.stdout"
+  when: 
+    - item.ca_chain_file_path is defined
+    - item.crt_file_path is defined
+
+

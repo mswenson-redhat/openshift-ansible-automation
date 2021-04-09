@@ -1,0 +1,66 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: get machineconfigpool labels
+  vars:
+    go_template: !unsafe '{{.metadata.labels}}'
+  command: "oc
+            get machineconfigpool {{ item }}
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  when: item != infranodes_name
+  loop: "{{ machine_role }}"
+  register: labels_out
+  changed_when: false
+
+- name: set labels flag
+  set_fact:
+    set_labels: true
+  loop: "{{ labels_out | list }}"
+  loop_control:
+    index_var: index
+  when:
+    - labels_out.results[index].item != "infra"
+    - labels_out.results[index].stdout.find("tls-ciphers") != -1
+  changed_when: false
+
+- name: remove label from machineconfigpools
+  command: "oc
+            label machineconfigpool {{ item }}
+            custom-kubelet-
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  when: 
+    - item != infranodes_name
+    - set_labels is defined
+  loop: "{{ machine_role }}"
+  notify:
+     - wait for roll out to start
+
+- name: Teardown kubeletconfig for node ciphers
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('file', 'kubelet_ciphers.yaml') }}"
+    validate_certs: no
+  notify:
+    - wait for rollout to start
+
+- name: run notified handlers
+  meta: flush_handlers
+
+- name: verify node availability
+  shell: "oc get nodes
+          --token {{ k8s_auth_results.k8s_auth.api_key }}
+          --insecure-skip-tls-verify=true
+          --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443 
+          | tr -s ' ' | cut -d ' ' -f2 | sed -n '1!p'"
+  register: nodes_out
+  until: nodes_out.stdout_lines | unique  == ["Ready"]
+  retries: "{{ (num_retries*2) }}"
+  delay: "{{ num_delay }}"
+  ignore_errors: yes

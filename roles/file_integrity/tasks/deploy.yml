@@ -1,0 +1,71 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create file integrity operator namespace
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    name: "{{ fileintegrity_targetnamespace }}"
+    api_version: v1
+    kind: Namespace
+
+    validate_certs: no
+- name: Create operatorgroup and subscription
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'fileintegrity_operator.yaml.j2') }}"
+    validate_certs: no
+
+- name: verify operator pod is running
+  command: "oc
+            get pods
+            -n {{ fileintegrity_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: get_pods
+  until:
+    - get_pods.stdout.find("{{fileintegrity_name}}") !=-1
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+
+- name: get file integrity subscription status
+  vars:
+    go_template: !unsafe '{{range .items}}{{.metadata.name}}{{" "}}{{(index .status.conditions 0).message}}{{"\n"}}{{end}}'
+  command: "oc
+            get subs
+            -n '{{ fileintegrity_namespace }}'
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: subs_out
+
+- name: verify file integrity operator installation
+  assert:
+    that:
+      - subs_out.stdout.find("{{ fileintegrity_name }}") !=-1
+      - subs_out.stdout.find("all available catalogsources are healthy") !=-1
+    fail_msg: "File integerity operator not installed or not healthy please check"
+    success_msg: "File integrity operator installed and healthy"
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+
+- name: Create file integrity instance
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'fileintegrity_instance.yaml.j2') }}"
+    validate_certs: no
+
+- name: Change file integrity operator installplanapproval
+  command: "oc
+            patch 
+            subscription/{{ fileintegrity_name }}
+            --type=json 
+            -p='[{\"op\": replace,\"path\":\"/spec/installPlanApproval\",\"value\":\"{{ fileintegrity_install_approval }}\"}]'
+            -n {{ fileintegrity_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"

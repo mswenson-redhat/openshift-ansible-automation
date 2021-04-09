@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: List
+items:
+- kind: OperatorGroup
+  apiVersion: operators.coreos.com/v1
+  metadata:
+    name: openshift-compliance
+    namespace: {{ compliance_namespace }}
+  spec:
+    targetNamespaces:
+    - {{ compliance_namespace }}
+  
+- kind: Subscription
+  apiVersion: operators.coreos.com/v1alpha1
+  metadata:
+    name: {{ compliance_name }}
+    namespace: {{ compliance_namespace }}
+  spec:
+    channel: "{{ compliance_subscription_channel }}"
+    installPlanApproval: Automatic
+    name: {{ compliance_name }}
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace

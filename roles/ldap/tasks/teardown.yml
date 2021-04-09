@@ -1,0 +1,63 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown group sync objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', 'ldap-group-sync.yml.j2') }}"
+    validate_certs: no
+    state: absent
+
+- name: Remove ldap certs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    validate_certs: no
+    state: absent
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ item.name }}"
+    namespace: "{{ item.namespace }}"
+  loop:
+    - { name: 'ca-config-map', namespace: 'openshift-config' }
+    - { name: 'ldap-cert', namespace: '{{ operation_namespace }}' }
+
+# Additional template brackets needed to escape go template syntax - e.g. {{ '{{' }}
+- name: Get current identityProviders
+  shell: >-
+    oc
+    get oauth/cluster
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --template='{{ '{{' }} .spec.identityProviders {{ '}}' }}'
+    -o go-template
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  changed_when: false
+  register: get_out
+
+# http://jsonpatch.com/#replace
+- shell: >-
+    oc
+    patch
+    oauth/cluster
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    -p '[ { "op": "remove", "path": "/spec/identityProviders" } ]'
+    --type=json
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  register: patch_out
+  changed_when: "'no change' not in patch_out.stdout"
+  when: get_out.stdout != '[]'
+
+- shell: >-
+    oc
+    patch
+    oauth/cluster
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    -p '[ { "op": "add", "path": "/spec/identityProviders", "value": [] } ]'
+    --type=json
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  register: patch_out
+  changed_when: "'no change' not in patch_out.stdout"
+  when: get_out.stdout != '[]'

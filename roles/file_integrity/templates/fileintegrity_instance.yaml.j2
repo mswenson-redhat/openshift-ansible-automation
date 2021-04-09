@@ -1,0 +1,19 @@
+apiVersion: v1alpha1
+kind: FileIntegrity
+metadata:
+  name: {{ fileintegrity_instance_name }}
+  namespace: {{ fileintegrity_targetnamespace }}
+spec:
+  config:
+    gracePeriod: 900
+  debug: false
+  tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/infra
+    operator: Exists
+  - effect: NoExecute
+    key: node-role.kubernetes.io/infra
+    operator: Exists

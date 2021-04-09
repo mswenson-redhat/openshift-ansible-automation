@@ -1,0 +1,17 @@
+- name: "Verify that required string variables are defined"
+  assert:
+    that: "{{ item }} is defined and {{ item }} | length > 0 and {{ item }} != None"
+    fail_msg: "{{ item}} needs to be set for the role to work "
+    success_msg: "Required variable {{ item }} is defined"
+  loop:
+    - etcd_nfsserver
+    - etcd_nfspath
+
+- name: Deploy etcd backup configuration
+  import_tasks: deploy.yml
+  when: not teardown | default(false)
+
+- name: Teardown etcd backup configuration
+  import_tasks: teardown.yml
+  when: teardown | default(false)
+  

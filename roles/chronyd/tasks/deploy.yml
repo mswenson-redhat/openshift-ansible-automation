@@ -1,0 +1,65 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create machineconfigs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    validate_certs: no
+    resource_definition:
+      apiVersion: machineconfiguration.openshift.io/v1
+      kind: MachineConfig
+      metadata:
+        name: "{{ item }}-chrony-configuration"
+        labels:
+          machineconfiguration.openshift.io/role: "{{ item }}"
+      spec:
+        config:
+          ignition:
+            config: {}
+            security:
+              tls: {}
+            timeouts: {}
+            version: 2.2.0
+          storage:
+            files:
+            - contents:
+                source: "data:text/plain;charset=utf-8;base64,{{ lookup('template', 'chrony.conf.j2') | b64encode }}"
+              filesystem: root
+              mode: 420
+              overwrite: true
+              path: /etc/chrony.conf
+    state: present
+  when: item != "infra"
+  loop: "{{ machine_role }}"
+
+- name: verify machineconfigurations
+  vars:
+    go_template: !unsafe '{{.spec.configuration}}{{(.source)}}'
+  command: "oc
+            get machineconfigpool {{ item }}
+            -n openshift-machine-api
+            -o go-template='{{ go_template }}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: machineconfig_out
+  until: machineconfig_out.stdout.find("{{ item }}-chrony-configuration") != -1
+  when: item != "infra"
+  loop: "{{ machine_role }}"
+  retries: "{{ num_retries }}"
+  delay: "{{ num_delay }}"
+  changed_when: false
+
+- name: verify node availability
+  shell: "oc get nodes
+          --token {{ k8s_auth_results.k8s_auth.api_key }}
+          --insecure-skip-tls-verify=true
+          --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443 
+          | tr -s ' ' | cut -d ' ' -f2 | sed -n '1!p'"
+  register: nodes_out
+  until: nodes_out.stdout_lines | unique  == ["Ready"]
+  retries: "{{ (num_retries*2) }}"
+  delay: "{{ num_delay }}"
+  ignore_errors: yes
+

@@ -1,0 +1,32 @@
+kind: ComplianceSuite
+apiVersion: compliance.openshift.io/v1alpha1
+metadata:
+  namespace: {{ compliance_namespace }}
+  name: {{ compliance_suitename }}
+spec:
+  autoApplyRemediations: false
+  scans:
+    - content: ssg-rhcos4-ds.xml
+      contentImage: >-
+        registry.redhat.io/openshift4/compliance-content-rhel8@sha256:fedef69f93712ba452e4f9edc6878979e9abb19a632ce13a03c1c9b051ff6083
+      name: workers-scan
+      nodeSelector:
+        node-role.kubernetes.io/worker: ''
+      profile: xccdf_org.ssgproject.content_profile_moderate
+    - content: ssg-ocp4-ds.xml
+      contentImage: >-
+        registry.redhat.io/openshift4/compliance-content-rhel8@sha256:fedef69f93712ba452e4f9edc6878979e9abb19a632ce13a03c1c9b051ff6083
+      name: platform-scan
+      profile: xccdf_org.ssgproject.content_profile_moderate
+      scanType: Platform
+      scanTolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/infra
+          operator: Exists
+        - effect: NoExecute
+          key: node-role.kubernetes.io/infra
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+  schedule: 0 1 * * *

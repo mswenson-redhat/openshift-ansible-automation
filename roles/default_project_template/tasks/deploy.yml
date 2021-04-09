@@ -1,0 +1,18 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Deploy default project template
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('file', 'default-project-template.yml') }}"
+    validate_certs: no
+
+- name: patch cluster to use new template
+  shell: >-
+    oc patch project.config.openshift.io/cluster
+    --type merge
+    --patch='{"spec":{"projectRequestTemplate": {"name": "project-request"}}}'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443

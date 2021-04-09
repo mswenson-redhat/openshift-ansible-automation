@@ -1,0 +1,28 @@
+# Removing this task as the compliance operator doesn't remove the following objects when uninstalled
+# profilebundles
+# compliancescans
+# compliancesuites
+# This prevents this role from cleanly removing the namespace
+# 
+- fail:
+    msg: "This role is removed in the automation see <compliance role path>/tasks/teardown.yml for details"
+
+#- fail:
+#    msg: "Make sure we've authenticated to the cluster before running this role"
+#  when: k8s_auth_results.k8s_auth.api_key is not defined
+#
+#- name: Teardown compliance operator namespace
+#  k8s:
+#    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+#    state: absent
+#    name: "{{ compliance_namespace }}"
+#    api_version: v1
+#    kind: Namespace
+#    validate_certs: no
+#
+#- name: Teardown operatorgroup and subscription
+#  k8s:
+#    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+#    state: absent
+#    resource_definition: "{{ lookup('template', 'compliance_operatorgroup.yaml.j2') }}"
+#    validate_certs: no

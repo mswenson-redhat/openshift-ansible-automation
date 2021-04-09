@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: List
+items:
+- kind: OperatorGroup
+  apiVersion: operators.coreos.com/v1
+  metadata:
+    name: openshift-operators-redhat
+    namespace: openshift-operators-redhat
+  spec: {}
+
+- kind: Subscription
+  apiVersion: operators.coreos.com/v1alpha1
+  metadata:
+    name: elasticsearch-operator
+    generateName: elasticsearch-
+    namespace: openshift-operators-redhat
+  spec:
+    channel: "{{ logging_subscription_channel }}"
+    installPlanApproval: "Automatic"
+    source: redhat-operators
+    sourceNamespace: "openshift-marketplace"
+    name: "elasticsearch-operator"
+
+- kind: OperatorGroup
+  apiVersion: operators.coreos.com/v1
+  metadata:
+    name: openshift-logging
+    namespace: openshift-logging
+  spec:
+    targetNamespaces:
+    - openshift-logging
+
+- kind: Subscription
+  apiVersion: operators.coreos.com/v1alpha1
+  metadata:
+    name: cluster-logging
+    namespace: openshift-logging
+  spec:
+    channel: "{{ logging_subscription_channel }}"
+    installPlanApproval: Automatic
+    name: cluster-logging
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace
+

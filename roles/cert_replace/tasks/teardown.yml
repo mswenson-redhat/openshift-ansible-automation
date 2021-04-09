@@ -1,0 +1,4 @@
+# Removing replaced certs is not allowed as this would make the cluster unreachable.
+# 
+- fail:
+    msg: "This role is removed in the automation see tasks/teardown.yml for details"

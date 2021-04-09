@@ -1,0 +1,76 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Set egress-assignable to nodes
+  command: "oc 
+            label 
+            nodes 
+            --all=true 
+            k8s.ovn.org/egress-assignable=\"\"
+            --overwrite"
+  when: network_type == "OVN"
+
+- name: Label namespaces
+  command: "oc
+            label
+            namespace
+            {{ item.namespace }}
+            name={{ item.namespace }}
+            --overwrite"
+  loop: "{{ egress_ips }}"
+  when: network_type == "OVN"
+
+- name: Deploy Egress IPs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'EgressIP.yml.j2') }}"
+  loop: "{{ egress_ips }}"
+  when: network_type == "OVN"
+  
+- name: Get hostsubnets
+  command: "oc 
+            get 
+            hostsubnet 
+            -o name
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: hostsubnets
+
+- name: Patch hostsubnets with Egress CIDR
+  command: "oc
+            patch
+            {{ item }}
+            --type=merge
+            -p 
+            '{\"egressCIDRs\":[\"{{ egress_CIDR }}\"]}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  with_items: "{{ hostsubnets.stdout_lines }}"
+  when: network_type == "SDN"
+
+- name: Patch NetNamespaces with Egress IPs
+  command: "oc
+            patch
+            netnamespace
+            {{ item.namespace }}
+            --type=merge
+            -p 
+            '{\"egressIPs\":[\"{{ item.ips[0] }}\"]}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  with_items: "{{ egress_ips }}"
+  when: network_type == "SDN"
+
+- name: Deploy Egress FWs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', '{{ item.template }}') }}"
+  loop: "{{ egress_fws }}"

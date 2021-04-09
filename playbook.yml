@@ -1,0 +1,251 @@
+#!/usr/bin/env ansible-playbook
+---
+# This playbook serves as a wrapper for all the functionality contained in the ansible roles
+# It uses ansible tags to toggle on/off functionality
+# The "never" tag is used to force the user to be explicit about what they want to do
+#
+# In addition to using tags to control everything the ability to toggle on/off
+# functionality within the roles is controlled through providing
+# -e cluster_name=<cluster name>.  For example -e cluster_name=it-test, -e cluster_name=it-lab
+# -e <action>=true flags. For example: -e apply=true, -e print=true, -e teardown=true
+#
+- name: Administer OCP
+  hosts: localhost
+  become: false
+  gather_facts: false
+  module_defaults:
+    group/k8s:
+      host: https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  vars_files:
+    - "{{ playbook_dir }}/vars/{{ cluster_name }}/vars.yml"
+    - "{{ playbook_dir }}/vars/{{ cluster_name }}/vault.yml"
+  vars_prompt:
+  - name: playbook_continue
+    prompt: "You are performing a(n)
+               {% if teardown | default(false)  %}\e[91mteardown\e[0m
+               {% elif apply | default(false) %}\e[35mapply\e[0m
+               {% elif print | default(false) %}\e[32mprint\e[0m
+               {% elif upgrade | default(false) %}\e[35mupgrade\e[0m
+               {% else %}\e[97mdefault\e[0m{% endif %}
+             operation.\n
+             Tags: \e[96m{{ ansible_run_tags | join(', ') }}\e[0m\n
+             Cluster: \e[94m{{ cluster_name | default('') }}\e[0m\n
+             \n
+             Continue (yes/no)?"
+  tasks:
+  # End play if "yes" was not received during continue prompt
+  # This helps prevent us from doing something stupid somewhere we don't expect
+  - meta: end_play
+    when: not (playbook_continue | bool | default(false))
+    tags:
+    - always
+
+  - block:
+      - name: Login
+        k8s_auth:
+          username: kubeadmin
+          password: "{{ pass }}"
+          validate_certs: no
+        register: k8s_auth_results
+        tags:
+          - always
+
+      - name: get unique cluster identifier
+        shell: >-
+          oc get machinesets
+          -n openshift-machine-api
+          --token {{ k8s_auth_results.k8s_auth.api_key }}
+          --insecure-skip-tls-verify=true
+          --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+          | grep worker | cut -d- -f1-3
+        register: cluster_id
+        tags:
+          - always
+        when: k8s_auth_results.k8s_auth.api_key is defined
+
+      - name: set unique_cluster_id fact
+        set_fact: 
+          openshift_unique_cluster_name: "{{ cluster_id.stdout }}"
+        tags:
+          - always
+        when: k8s_auth_results.k8s_auth.api_key is defined
+
+      - name: configure cert_replace
+        import_role:
+          name: cert_replace
+        tags:
+          - never
+          - cert_replace
+
+      - name: configure infra nodes
+        import_role:
+          name: infranodes
+        tags:
+          - never
+          - infranodes
+
+      - name: configure TLS 1.2 ciphers
+        import_role:
+          name: ciphers
+        tags:
+          - never
+          - ciphers
+
+      - name: configure machine healthchecks
+        import_role:
+          name: machine_healthchecks
+        tags:
+          - never
+          - machine_healthchecks
+
+      - name: move ingress router to infra nodes
+        import_role:
+          name: mv_ingress_infra
+        tags:
+          - never
+          - mv_ingress_infra
+
+      - name: configure vsphere_storageclass
+        import_role:
+          name: vsphere_storageclass
+        tags:
+          - never
+          - vsphere_storageclass
+
+      - name: configure chronyd
+        import_role:
+          name: chronyd
+        tags:
+          - never
+          - chronyd
+
+      - name: configure etcd backups
+        import_role:
+          name: etcd_backups
+        tags:
+          - never
+          - etcd_backups
+
+      - name: configure monitoring
+        import_role:
+          name: monitoring
+        tags:
+          - never
+          - monitoring
+
+      - name: configure logging
+        import_role:
+          name: logging
+        tags:
+          - never
+          - logging
+
+      - name: configure RBAC
+        import_role:
+          name: rbac
+        tags:
+          - never
+          - rbac
+
+      - name: configure Egress
+        import_role:
+          name: egress_rules
+        tags:
+          - never
+          - egress_rules
+
+      - name: configure file integrity operator
+        import_role:
+          name: file_integrity
+        tags:
+          - never
+          - file_integrity
+
+      - name: configure compliance operator
+        import_role:
+          name: compliance
+        tags:
+          - never
+          - compliance
+
+      - name: configure ldap
+        import_role:
+          name: ldap
+        tags:
+          - never
+          - ldap
+
+      - name: configure image policy
+        import_role:
+          name: image_policy
+        tags:
+          - never
+          - image_policy
+
+      - name: Deploy get co 
+        import_role:
+          name: get_co
+        tags:
+          - never
+          - get_co
+
+      - name: configure additional nic
+        import_role:
+          name: additional_nic
+        tags:
+          - never
+          - additional_nic
+
+      - name: configure object pruning
+        import_role:
+          name: object_prune
+        tags:
+          - never
+          - object_prune
+          
+      - name: configure image registry
+        import_role:
+          name: internal_image_registry
+        tags:
+          - never
+          - internal_image_registry
+
+      - name: manage project template
+        import_role:
+          name: default_project_template
+        tags:
+          - never
+          - default_project_template
+
+      - name: configure custom TLS certs
+        import_role:
+          name: custom_certs
+        tags:
+          - never
+          - custom_certs
+
+      - name: configure external_registry
+        import_role:
+          name: external_registry
+        tags:
+          - never
+          - external_registry
+
+
+    always:
+      # Putting this in an always block ensures the sensitive information is always removed
+      # The tags on this should include all configuration roles
+      # Make sure to add new ones if more roles are added
+    - name: If login succeded try to log out
+      when: k8s_auth_results.k8s_auth.api_key is defined
+      k8s_auth:
+        state: absent
+        api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+        validate_certs: no
+      tags:
+        - always
+
+  handlers:
+    - name: wait for rollout to start
+      wait_for:
+        timeout: 30

@@ -1,0 +1,68 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+# Prepare Image Registry
+
+- name: get config for imageregistry
+  k8s_info:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    api_version: imageregistry.operator.openshift.io/v1
+    kind: Config
+    name: cluster
+    validate_certs: no
+  register: reg_imagecfg
+
+- name: Create PVC for image registry
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('file', 'image-registry-pvc.yml') }}"
+
+- name: Patch registry rollout strategy on vsphere
+  shell: >-
+    oc patch configs.imageregistry.operator.openshift.io/cluster
+    --type merge
+    --patch='{"spec":{"rolloutStrategy":"Recreate","replicas":1}}'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.ral.clinicaldevelopment.ibm.com:6443
+
+
+# Configure PVC storage provided the variable image_registry_emptydir variable
+# is false.
+- name: Configure PVC storage for Image Registry
+  block:
+    - name: Remove emptyDir storage if configured
+      shell: >-
+        oc patch configs.imageregistry.operator.openshift.io/cluster
+        --type json
+        --patch='[{"op":"remove","path":"/spec/storage/emptyDir"}]'
+        --token {{ k8s_auth_results.k8s_auth.api_key }}
+        --insecure-skip-tls-verify=true
+        --server=https://api.{{ cluster_name }}.ral.clinicaldevelopment.ibm.com:6443
+      when:
+        - reg_imagecfg['resources'][0]['spec']['storage']['emptyDir'] is defined
+
+    - name: Assign pvc to image registry if it is not already assigned
+      shell: >-
+        oc patch configs.imageregistry.operator.openshift.io/cluster
+        --type merge
+        --patch='{"spec":{"storage":{"pvc":{"claim":""}}}}'
+        --token {{ k8s_auth_results.k8s_auth.api_key }}
+        --insecure-skip-tls-verify=true
+        --server=https://api.{{ cluster_name }}.ral.clinicaldevelopment.ibm.com:6443
+      when:
+        - reg_imagecfg['resources'][0]['spec']['storage']['pvc'] is not defined
+
+- name: Change image registry ManagementState
+  shell: >-
+    oc patch configs.imageregistry.operator.openshift.io/cluster
+    --type merge
+    --patch='{"spec":{"managementState":"Managed"}}'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.ral.clinicaldevelopment.ibm.com:6443
+  when:
+    - reg_imagecfg['resources'][0]['spec']['managementState'] == "Removed"

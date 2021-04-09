@@ -1,0 +1,27 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Deploy Approved Registries Patch
+  command: "oc 
+            patch 
+            image.config.openshift.io/cluster 
+            --type='merge' 
+            -p 
+            '{\"spec\": {\"registrySources\": {\"allowedRegistries\": {{ allowed_registries }}}}}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  when: allowed_registries is defined 
+
+- name: Deploy Insecure Registries Patch
+  command: "oc 
+            patch 
+            image.config.openshift.io/cluster 
+            --type='merge' 
+            -p 
+            '{\"spec\": {\"registrySources\": {\"insecureRegistries\": {{ insecure_registries }}}}}'
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  when: insecure_registries is defined 

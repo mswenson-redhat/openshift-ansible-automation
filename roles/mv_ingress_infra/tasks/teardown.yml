@@ -1,0 +1,31 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+# Additional template brackets needed to escape go template syntax - e.g. {{ '{{' }}
+- name: Get current ingress configuration
+  shell: >-
+    oc
+    get ingresscontroller/default
+    -n openshift-ingress-operator
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --template="{{ '{{' }} .spec.nodePlacement {{ '}}' }}"
+    -o go-template
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  changed_when: false
+  register: get_out
+
+- name: remove ingress from infra nodes
+  shell: >-
+    oc
+    patch ingresscontroller/default
+    -n openshift-ingress-operator
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    -p '[ { "op": "remove", "path": "/spec/nodePlacement" } ]'
+    --type=json
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  register: patch_out
+  changed_when: "'no change' not in patch_out.stdout"
+  when: get_out.stdout != '<no value>'

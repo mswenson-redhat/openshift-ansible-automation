@@ -1,0 +1,30 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create Namespace
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'namespace.yaml.j2') }}"
+  loop: "{{ tls_certs | subelements('namespaces', 'skip_missing=True') }}"
+
+- name: Deploy custom certs
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    validate_certs: no
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ item[0].name }}"
+        namespace: "{{ item[1] }}"
+      data:
+        tls.crt: "{{ item[0].tls.crt }}"
+        tls.key: "{{ item[0].tls.key }}"
+      type: kubernetes.io/tls
+  with_subelements:
+    - "{{ tls_certs }}"
+    - namespaces

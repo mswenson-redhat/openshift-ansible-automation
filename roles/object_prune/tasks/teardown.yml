@@ -1,0 +1,24 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown build prune objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('file', 'prune-builds.yml') }}"
+    validate_certs: no
+    state: absent
+
+- name: Teardown image prune objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', 'prune-images.yml.j2') }}"
+    validate_certs: no
+    state: absent
+
+- name: Teardown deployment prune objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('file', 'prune-deployments.yml') }}"
+    validate_certs: no
+    state: absent

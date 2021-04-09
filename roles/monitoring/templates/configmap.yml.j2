@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: {{ enable_user_namespace_monitoring }}
+    prometheusOperator:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    prometheusK8s:
+      retention: {{ monitoring_retention_period }}
+      volumeClaimTemplate:
+        metadata:
+          name: {{ monitoring_pvc_name }}
+        spec:
+          storageClassName: {{ monitoring_storage_class }}
+          volumeMode: Filesystem
+          resources:
+            requests:
+              storage: {{ monitoring_storage_size }}
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    alertmanagerMain:
+      volumeClaimTemplate:
+        metadata:
+          name: {{ alerting_pvc_name }}
+        spec:
+          storageClassName: {{ monitoring_storage_class }}
+          resources:
+            requests:
+              storage: {{ alerting_storage_size }}
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    kubeStateMetrics:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    grafana:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    telemeterClient:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    k8sPrometheusAdapter:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    openshiftStateMetrics:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"
+    thanosQuerier:
+      nodeSelector:
+        {{ infranodes_node_selector }}
+      tolerations:
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "{{ infranodes_taints_key }}"
+        operator: "Exists"
+        effect: "NoExecute"

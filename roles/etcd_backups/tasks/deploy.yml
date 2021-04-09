@@ -1,0 +1,35 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create Namespace
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'namespace.yaml.j2') }}"
+
+- include_tasks: serviceaccount.yml
+
+- include_tasks: create-pv.yml
+  when: etcd_nfsserver is defined
+
+- include_tasks: create-pvc.yml
+
+- include_tasks: get_etcd_image.yml
+
+- include_tasks: fetch_ocp_version.yml
+
+- name: Create config map for custom backup scripts
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'configmap.yaml.j2') }}"
+
+- name: Create CronJob
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    validate_certs: no
+    definition: "{{ lookup('template', 'cronjob.yaml.j2') }}"

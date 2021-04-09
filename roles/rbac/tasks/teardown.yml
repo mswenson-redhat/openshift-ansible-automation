@@ -1,0 +1,52 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Teardown role-binding objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', 'role-bindings.yml.j2') }}"
+    validate_certs: no
+    state: absent
+  loop: "{{ rbac_roles | subelements('namespaces', 'skip_missing=True') }}"
+
+- name: Teardown cluster-role-binding objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', 'cluster-role-bindings.yml.j2') }}"
+    validate_certs: no
+    state: absent
+  loop: "{{ rbac_roles }}"
+  when: item.namespaces is not defined
+
+- name: Teardown role objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', '{{ item[0].role_name }}.yml.j2') }}"
+    validate_certs: no
+    state: absent
+  loop: "{{ rbac_roles | subelements('namespaces', 'skip_missing=True') }}"
+  when: 
+    - item[0].create_role is defined
+    - item[0].create_role == true
+
+- name: Teardown cluster-role objects
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    resource_definition: "{{ lookup('template', '{{ item.role_name }}.yml.j2') }}"
+    validate_certs: no
+    state: absents
+  loop: "{{ rbac_roles }}"
+  when: 
+    - item.namespaces is not defined
+    - item.create_role is defined
+    - item.create_role == true
+
+- name: Remove SCC from default SA in a list of namespaces
+  command: "oc adm policy 
+            remove-scc-from-user {{ item[0].name }} 
+            default -n {{ item[1] }} 
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  loop: "{{ rbac_roles | subelements('namespaces', 'skip_missing=True') }}"

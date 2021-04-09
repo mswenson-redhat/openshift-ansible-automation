@@ -1,0 +1,18 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: Create monitoring config map
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'configmap.yml.j2') }}"
+    validate_certs: no
+
+- name: Create user workload monitoring config map
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: present
+    resource_definition: "{{ lookup('template', 'userworkload-configmap.yml.j2') }}"
+    validate_certs: no
+  when: enable_user_namespace_monitoring

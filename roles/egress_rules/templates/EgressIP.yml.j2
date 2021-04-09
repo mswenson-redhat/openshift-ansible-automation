@@ -1,0 +1,13 @@
+#jinja2: trim_blocks: "True"
+apiVersion: k8s.ovn.org/v1
+kind: EgressIP
+metadata:
+  name: egress-ip-{{ item.namespace }}
+spec:
+  egressIPs:
+{% for ip in item.ips %}
+  - {{ ip }}
+{% endfor %}
+  namespaceSelector:
+    matchLabels:
+      name: {{ item.namespace }}

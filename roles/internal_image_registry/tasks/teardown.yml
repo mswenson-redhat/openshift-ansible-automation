@@ -1,0 +1,52 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+- name: get config for imageregistry
+  k8s_info:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    api_version: imageregistry.operator.openshift.io/v1
+    kind: Config
+    name: cluster
+    validate_certs: no
+  register: reg_imagecfg
+
+- name: Remove PVC for image registry
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    validate_certs: no
+    definition: "{{ lookup('file', 'image-registry-pvc.yml') }}"
+
+- name: Remove emptyDir storage if configured
+  shell: >-
+    oc patch configs.imageregistry.operator.openshift.io/cluster
+    --type json
+    --patch='[{"op":"remove","path":"/spec/storage/pvc"}]'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  when:
+    - reg_imagecfg['resources'][0]['spec']['storage']['pvc'] is defined
+
+- name: Configure emptyDir storage for Image Registry
+  shell: >-
+    oc patch configs.imageregistry.operator.openshift.io/cluster
+    --type merge
+    --patch='{"spec":{"storage":{"emptyDir":{}}}}'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  when:
+    - reg_imagecfg['resources'][0]['spec']['storage']['emptyDir'] is not defined
+
+- name: Change image registry ManagementState
+  shell: >-
+    oc patch configs.imageregistry.operator.openshift.io/cluster
+    --type merge
+    --patch='{"spec":{"managementState":"Removed"}}'
+    --token {{ k8s_auth_results.k8s_auth.api_key }}
+    --insecure-skip-tls-verify=true
+    --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443
+  when:
+    - reg_imagecfg['resources'][0]['spec']['managementState'] == "Managed"

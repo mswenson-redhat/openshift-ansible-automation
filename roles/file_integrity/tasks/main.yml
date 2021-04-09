@@ -1,0 +1,7 @@
+- name: Deploy Cluster Logging
+  import_tasks: deploy.yml
+  when: not teardown | default(false)
+
+- name: Teardown Cluster Logging
+  import_tasks: teardown.yml
+  when: teardown | default(false)

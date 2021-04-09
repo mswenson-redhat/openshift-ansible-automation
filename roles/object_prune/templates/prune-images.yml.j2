@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: List
+items:
+
+- kind: CronJob
+  apiVersion: batch/v1beta1
+  metadata:
+    name: cronjob-prune-resources-images
+    namespace: "{{ operation_namespace }}"
+  spec:
+    schedule: "*/10 * * * *"
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 5
+    failedJobsHistoryLimit: 5
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: cronjob-prune-resources-images
+              image: registry.redhat.io/openshift4/ose-cli:latest
+              command:
+              - "/bin/bash"
+              - "-c"
+              - "oc adm prune images
+                --registry-url https://default-route-openshift-image-registry.apps.{{ cluster_name }}.{{ openshift_base_domain }}
+                --keep-tag-revisions=3
+                --keep-younger-than=48h
+                --force-insecure=true
+                --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                --confirm"
+            restartPolicy: OnFailure
+            terminationGracePeriodSeconds: 30
+            activeDeadlineSeconds: 500
+            serviceAccountName: image-pruner
+
+- kind: ClusterRoleBinding
+  apiVersion: rbac.authorization.k8s.io/v1
+  metadata:
+    name: image-pruners
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:image-pruner
+  subjects:
+  - kind: ServiceAccount
+    name: image-pruner
+    namespace: "{{ operation_namespace }}"
+
+- kind: ServiceAccount
+  apiVersion: v1
+  metadata:
+    name: image-pruner
+    namespace: "{{ operation_namespace }}"

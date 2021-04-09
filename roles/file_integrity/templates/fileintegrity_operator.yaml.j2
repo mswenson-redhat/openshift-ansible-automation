@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: List
+items:
+- kind: OperatorGroup
+  apiVersion: operators.coreos.com/v1
+  metadata:
+    annotations:
+      olm.providedAPIs: FileIntegrity.v1alpha1.fileintegrity.openshift.io,FileIntegrityNodeStatus.v1alpha1.fileintegrity.openshift.io
+    name: {{ fileintegrity_operatorgroup_name }}
+    namespace: {{ fileintegrity_namespace }}
+  spec:
+    targetNamespaces:
+    - {{ fileintegrity_targetnamespace }}
+
+- kind: Subscription
+  apiVersion: operators.coreos.com/v1alpha1
+  metadata:
+    name: {{ fileintegrity_name }}
+    namespace: {{ fileintegrity_namespace }}
+  spec:
+    channel: "{{ fileintegrity_subscription_channel }}"
+    installPlanApproval: Automatic
+    name: {{ fileintegrity_name }}
+    source: redhat-operators
+    sourceNamespace: openshift-marketplace

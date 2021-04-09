@@ -1,0 +1,44 @@
+- fail:
+    msg: "Make sure we've authenticated to the cluster before running this role"
+  when: k8s_auth_results.k8s_auth.api_key is not defined
+
+# NOTE: This only tearsdown the subscription because file integrity uses the global_operators operatorgroup
+# which is used by other operators
+- name: Teardown subscription
+  k8s:
+    api_key: "{{ k8s_auth_results.k8s_auth.api_key }}"
+    state: absent
+    resource_definition: "{{ lookup('template', 'fileintegrity_subscription_teardown.j2') }}"
+    validate_certs: no
+
+- name: Teardown fileintegrity instances
+  command: "oc
+            delete
+            fileintegrity --all
+            -n {{ fileintegrity_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+
+- name: Get list of fileintegrity clusterserviceversion objects
+  vars:
+    go_template: !unsafe '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}'
+  command: "oc
+            get csv
+            -n {{ fileintegrity_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            -o go-template='{{ go_template }}'
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  register: csvs
+  changed_when: false
+
+- name: Delete all fileintegrity clusterserviceversion objects.
+  command: "oc
+            delete csv {{ item }}
+            -n {{ fileintegrity_namespace }}
+            --token {{ k8s_auth_results.k8s_auth.api_key }}
+            --insecure-skip-tls-verify=true
+            --server=https://api.{{ cluster_name }}.{{ openshift_base_domain }}:6443"
+  when: item is search("file-integrity-operator") 
+  loop: "{{ csvs.stdout_lines }}"

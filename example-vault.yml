@@ -1,0 +1,12 @@
+# DO NOT ADD to GIT if values have been populated in this file and it is not encrypted
+# THIS FILE IS FOR EXAMPLE ONLY
+
+#kubeadmin password - change to user password once authentication is configured
+pass: <DO NOT FILL IN>
+
+ldap_bind_password: <DO NOT FILL IN>
+
+#used when configuring ldaps
+#run the following command to get the certs to use
+#openssl s_client -connect <ldaps connect URL> -showcerts
+ldap_cert: < DO NOT FILL IN>
