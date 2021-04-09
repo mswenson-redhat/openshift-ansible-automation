@@ -6,7 +6,3 @@ pass: <DO NOT FILL IN>
 
 ldap_bind_password: <DO NOT FILL IN>
 
-#used when configuring ldaps
-#run the following command to get the certs to use
-#openssl s_client -connect <ldaps connect URL> -showcerts
-ldap_cert: < DO NOT FILL IN>
