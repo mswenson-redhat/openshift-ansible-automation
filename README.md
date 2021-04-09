@@ -1,4 +1,4 @@
-# OCP4-Day2
+# Openshift-Ansible-Automation
 
 These playbooks help to configure OCP after a cluster has been installed.  It is possible to use these playbooks
 on many clusters by creating a {repo folder}/vars/{cluster_name} directory to contain the vars.yml and vault.yml 
