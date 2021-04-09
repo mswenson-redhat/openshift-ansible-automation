@@ -92,8 +92,15 @@ tls_certs:
     namespaces: 
       - <list of namespaces>
     tls:
-      key: "{{ tls_secret_key | b64encode }}"
-      crt: "{{ tls_secret_crt | b64encode }}"
+      key: "{{ tls_cert_string[0].key_file | b64encode }}"
+      crt: "{{ tls_cert_string[0].crt_file | b64encode }}"
+
+tls_cert_files:
+  - key_file_path: "/some/file/path/key.pem"
+    crt_file_path: "/some/file/path/crt.pem"
+tls_cert_string:
+  - key_file: "{{ lookup('file', tls_cert_files[0].key_file_path ) + '\n'}}"
+    crt_file: "{{ lookup('file', tls_cert_files[0].crt_file_path ) + '\n'}}"
 
 #Replace Certs
 certs:
